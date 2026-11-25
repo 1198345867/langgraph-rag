@@ -25,8 +25,9 @@
 - [17. 当前评测基线](#17-当前评测基线)
 - [18. 安全与数据边界](#18-安全与数据边界)
 - [19. 常见问题排查](#19-常见问题排查)
-- [20. 已知限制与演进方向](#20-已知限制与演进方向)
-- [21. 维护入口](#21-维护入口)
+- [20. MCP 接入](#20-mcp-接入)
+- [21. 已知限制与演进方向](#21-已知限制与演进方向)
+- [22. 维护入口](#22-维护入口)
 
 ## 1. 项目目标
 
@@ -143,33 +144,41 @@ pending -> parsing -> indexing -> completed
 
 ```text
 langgraph RAG/
-├─ backend/rag_app/
-│  ├─ main.py                    # FastAPI、CORS、匿名会话中间件
-│  ├─ config.py                  # Pydantic Settings
-│  ├─ bootstrap.py               # 服务组装
-│  ├─ api/routes.py              # HTTP 路由
-│  ├─ graph/
-│  │  ├─ state.py                # RAGState
-│  │  ├─ nodes.py                # 检索、生成、引用与持久化节点
-│  │  └─ workflow.py             # 节点和条件边
-│  ├─ models/
-│  │  ├─ document.py             # ParsedBlock、SectionNode、ChunkRecord
-│  │  ├─ chat.py                 # Chat 请求、响应和 Citation
-│  │  └─ conversation.py         # 会话、消息和详情模型
-│  └─ services/
-│     ├─ mineru.py               # MinerU API/CLI 适配
-│     ├─ chunking.py             # 层次切片
-│     ├─ elasticsearch.py        # 索引、检索、RRF、会话持久化
-│     ├─ agicto.py               # Chat、Embedding、Rerank
-│     ├─ memory.py               # 上下文裁剪、滚动摘要和轮次写入
-│     └─ ingestion.py            # 入库编排
+├─ backend/
+│  ├─ mcp_server.py              # MCP stdio 服务，复用同一 RAG 工作流
+│  └─ rag_app/
+│     ├─ main.py                 # FastAPI、CORS、匿名会话中间件
+│     ├─ config.py               # Pydantic Settings
+│     ├─ bootstrap.py            # 服务组装
+│     ├─ api/routes.py           # HTTP 路由
+│     ├─ graph/
+│     │  ├─ state.py             # RAGState
+│     │  ├─ nodes.py             # 检索、生成、引用与持久化节点
+│     │  └─ workflow.py          # 节点和条件边
+│     ├─ models/
+│     │  ├─ document.py          # ParsedBlock、SectionNode、ChunkRecord
+│     │  ├─ chat.py              # Chat 请求、响应和 Citation
+│     │  └─ conversation.py      # 会话、消息和详情模型
+│     └─ services/
+│        ├─ mineru.py            # MinerU API/CLI 适配
+│        ├─ chunking.py          # 层次切片
+│        ├─ elasticsearch.py     # 索引、检索、RRF、会话持久化
+│        ├─ agicto.py            # Chat、Embedding、Rerank
+│        ├─ memory.py            # 上下文裁剪、滚动摘要和轮次写入
+│        └─ ingestion.py         # 入库编排
 ├─ frontend/src/
 │  ├─ App.tsx                    # 上传、文档列表、对话
 │  ├─ api.ts                     # 后端类型与请求封装
 │  └─ components/PdfPreview.tsx  # PDF 页面和 bbox 高亮
-├─ scripts/evaluate_rag.py       # 98 题评测脚本
+├─ scripts/
+│  ├─ evaluate_rag.py            # 98 题评测脚本
+│  ├─ check_regression.py        # 评测基线回归门禁
+│  ├─ export_badcases.py         # Bad Case 归因导出
+│  └─ bench_search_hybrid.py     # 检索并发化微基准
 ├─ tests/                        # 切片、MinerU、节点和评测测试
+├─ .github/workflows/ci.yml      # 静态检查、单测与评测门禁
 ├─ data/                         # 上传与解析运行时数据，已忽略
+├─ rag_eval_baseline.json        # 评测基线契约
 ├─ .env.example                  # 配置模板，不包含密钥
 ├─ pyproject.toml
 ├─ uv.lock
@@ -1052,7 +1061,44 @@ uv sync
 uv run pytest -q
 ```
 
-## 20. 已知限制与演进方向
+## 20. MCP 接入
+
+`backend/mcp_server.py` 把同一套 RAG 工作流暴露为 MCP 工具，走 stdio 传输，兼容 MCP 的客户端都能把本项目的问答能力当作外部工具调用。它复用 `ApplicationServices` 与相同的 Elasticsearch 索引，没有第二套检索实现。
+
+| 工具 | 作用 |
+|---|---|
+| `ask_documents` | 提问并返回带 `[E1]` 引用的答案，传入上一轮的 `conversation_id` 可续接多轮 |
+| `search_documents` | 只返回片段原文与来源，适合需要自行组织上下文的上层 Agent |
+| `list_documents` | 列出已入库文档及其解析状态 |
+
+启动：
+
+```powershell
+uv run python backend/mcp_server.py
+```
+
+客户端配置示例（以 `mcpServers` 配置为准，路径按实际位置调整）：
+
+```json
+{
+  "mcpServers": {
+    "private-doc-rag": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "C:\\path\\to\\langgraph RAG",
+        "run",
+        "python",
+        "backend/mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+MCP 客户端没有浏览器 cookie，服务端以固定会话标识 `mcp` 隔离对话记录。Elasticsearch 不可用时工具调用直接返回错误，不返回空结果。
+
+## 21. 已知限制与演进方向
 
 ### P0：可信度
 
@@ -1092,7 +1138,7 @@ uv run pytest -q
 4. 引用命中位置在 PDF 页内自动滚动。
 5. 移动端适配和键盘操作优化。
 
-## 21. 维护入口
+## 22. 维护入口
 
 | 需求 | 优先阅读或修改 |
 |---|---|
@@ -1107,6 +1153,7 @@ uv run pytest -q
 | 修改数据模型或 ES 字段 | `backend/rag_app/models/document.py`、`services/elasticsearch.py` |
 | 修改上传和入库编排 | `backend/rag_app/services/ingestion.py` |
 | 修改网页布局 | `frontend/src/App.tsx`、`frontend/src/styles.css` |
+| 增减 MCP 工具 | `backend/mcp_server.py` |
 | 修改 PDF 高亮 | `frontend/src/components/PdfPreview.tsx` |
 | 修改评测指标 | `scripts/evaluate_rag.py` |
 
