@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -247,8 +248,16 @@ class ElasticsearchStore:
         query_vector: list[float] | None,
         size: int,
     ) -> list[dict[str, Any]]:
-        bm25_hits = await self._bm25_search(query, size)
-        vector_hits = await self._vector_search(query_vector, size) if query_vector else []
+        # BM25 与 kNN 是两条独立的检索路径，并行发起以缩短单次查询的检索耗时
+        async def vector_search() -> list[dict[str, Any]]:
+            if query_vector is None:
+                return []
+            return await self._vector_search(query_vector, size)
+
+        bm25_hits, vector_hits = await asyncio.gather(
+            self._bm25_search(query, size),
+            vector_search(),
+        )
         return self._reciprocal_rank_fusion(bm25_hits, vector_hits)
 
     async def _bm25_search(self, query: str, size: int) -> list[dict[str, Any]]:

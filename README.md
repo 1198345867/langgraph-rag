@@ -323,7 +323,8 @@ Copy-Item .env.example .env
 | `CHUNK_OVERLAP_RATIO` | `0.15` | 相邻切片重叠比例，默认 75 字 |
 | `RETRIEVAL_CANDIDATES` | `30` | 每条查询的候选数 |
 | `RERANK_TOP_K` | `8` | 进入生成上下文的最大证据数 |
-| `MIN_EVIDENCE_SCORE` | `0.25` | 证据充分性的最低重排分 |
+| `MIN_RERANK_SCORE` | `0.25` | 启用重排时，证据充分性的最低重排分 |
+| `MIN_FUSION_SCORE` | `0.25` | 未启用重排时，证据充分性的最低融合分 |
 
 ### 8.6 会话记忆
 
@@ -991,7 +992,7 @@ mineru --version
 
 ### 19.5 回答没有引用或直接拒答
 
-- 检查 `MIN_EVIDENCE_SCORE` 是否过高。
+- 检查 `MIN_RERANK_SCORE` / `MIN_FUSION_SCORE` 是否过高。
 - 检查重排模型是否配置正确。
 - 检查文档是否已完成入库且 `is_current=true`。
 - 检查问题是否包含文档中不存在的概念。

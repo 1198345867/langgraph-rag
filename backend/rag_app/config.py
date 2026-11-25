@@ -54,7 +54,8 @@ class Settings(BaseSettings):
     chunk_overlap_ratio: float = 0.15
     retrieval_candidates: int = 30
     rerank_top_k: int = 8
-    min_evidence_score: float = 0.25
+    min_rerank_score: float = 0.25
+    min_fusion_score: float = 0.25
     memory_recent_messages: int = 12
     memory_context_max_chars: int = 6000
     memory_summary_trigger_messages: int = 12

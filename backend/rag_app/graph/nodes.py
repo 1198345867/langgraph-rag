@@ -127,12 +127,16 @@ class RAGNodes:
                 score = scores.get(candidate["chunk_id"])
                 if score is None:
                     continue
-                evidence.append({**candidate, "score": score})
+                evidence.append({**candidate, "score": score, "score_source": "rerank"})
             evidence.sort(key=lambda item: item["score"], reverse=True)
             evidence = evidence[: self.settings.rerank_top_k]
         else:
             evidence = [
-                {**candidate, "score": candidate["retrieval_score"]}
+                {
+                    **candidate,
+                    "score": candidate["retrieval_score"],
+                    "score_source": "fusion",
+                }
                 for candidate in candidates[: self.settings.rerank_top_k]
             ]
         return {
@@ -149,17 +153,23 @@ class RAGNodes:
                 "missing_retrieval_queries": state.get("retrieval_queries", []),
                 "trace": ["assess_evidence:empty"],
             }
+        # 重排分与 RRF 融合分不在同一量纲，按证据的实际来源选择对应阈值
+        threshold = (
+            self.settings.min_rerank_score
+            if evidence[0].get("score_source") == "rerank"
+            else self.settings.min_fusion_score
+        )
         top_score = float(evidence[0].get("score", 0))
         missing_queries = [
             query
             for query in state.get("retrieval_queries", [])
             if not any(
                 query in item.get("matched_queries", [])
-                and float(item.get("score", 0)) >= self.settings.min_evidence_score
+                and float(item.get("score", 0)) >= threshold
                 for item in evidence
             )
         ]
-        sufficient = top_score >= self.settings.min_evidence_score and not missing_queries
+        sufficient = top_score >= threshold and not missing_queries
         return {
             "evidence_sufficient": sufficient,
             "insufficiency_reason": (

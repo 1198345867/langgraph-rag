@@ -980,7 +980,7 @@ def add_langgraph(doc: Document) -> None:
             ["plan_retrieval", "standalone_query", "1 到 3 条 retrieval_queries"],
             ["retrieve", "retrieval_queries, embedding", "BM25+kNN 融合后的 retrieved_candidates"],
             ["rerank", "retrieval_queries, candidates", "按重排分数排序的 reranked_evidence"],
-            ["assess_evidence", "evidence, min_evidence_score", "evidence_sufficient、缺口原因和缺失子问题"],
+            ["assess_evidence", "evidence, 对应来源的阈值", "evidence_sufficient、缺口原因和缺失子问题"],
             ["rewrite_for_retry", "缺失子问题和原查询", "补充同义词后的 retrieval_queries，并发起第二轮检索"],
             ["compose_context", "reranked_evidence", "E1...En 的 context_pack 与 evidence_map"],
             ["generate", "standalone_query, context_pack, messages", "带 [E-id] 标记的 draft_answer"],
@@ -1107,7 +1107,7 @@ def add_stack(doc: Document) -> None:
         rows=[
             ["retrieval_candidates", "30", "每条检索查询的候选数量"],
             ["rerank_top_k", "8", "进入生成上下文的最大证据数"],
-            ["min_evidence_score", "0.25", "证据充分性判断阈值"],
+            ["min_rerank_score / min_fusion_score", "0.25", "按证据来源分别判断是否充分"],
             ["embedding_dimensions", "1024", "与 ES dense_vector 维度必须一致"],
             ["embedding batch", "10", "入库向量化的批大小"],
             ["recent turns", "8", "问题改写使用的历史消息上限"],
