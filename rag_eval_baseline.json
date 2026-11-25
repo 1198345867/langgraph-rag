@@ -1,0 +1,16 @@
+{
+  "dataset": "个人金融业务制度体系",
+  "total": 98,
+  "source": "rag_eval_report_98_citation_fix.json",
+  "metrics": {
+    "keyword_recall_macro": 0.8768,
+    "citation_doc_recall_macro": 0.9224,
+    "citation_present_rate": 1.0,
+    "all_expected_docs_cited_rate": 0.8367,
+    "evidence_sufficient_rate": 1.0,
+    "invalid_citation_rate": 0.0,
+    "repair_success_rate": 1.0,
+    "all_citations_highlighted_rate": 1.0,
+    "answer_similarity_mean": 0.2287
+  }
+}

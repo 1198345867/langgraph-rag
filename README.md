@@ -806,18 +806,11 @@ height = (y1 - y0) / page_height
 
 ### 16.1 单元测试
 
-Windows PowerShell：
-
 ```powershell
-$env:PYTHONPATH = "."
 uv run pytest -q
 ```
 
-macOS / Linux：
-
-```bash
-PYTHONPATH=. uv run pytest -q
-```
+测试通过 `pyproject.toml` 里的 `pythonpath = [".", "backend"]` 解析 `rag_app` 与 `scripts`，无需额外设置环境变量。
 
 当前测试覆盖：
 
@@ -882,6 +875,31 @@ uv run python scripts/evaluate_rag.py `
 - 按题型和难度分组的表现。
 
 自动指标是代理指标，不能完全替代人工对事实正确性、引用充分性、答案完整性和拒答正确性的评审。
+
+### 16.5 回归门禁与 CI
+
+`.github/workflows/ci.yml` 分两个任务：
+
+- `quality`：`ruff check` + `pytest`，push 和 PR 都触发。
+- `eval-gate`：把指定评测报告与 `rag_eval_baseline.json` 对比，任一核心指标回退超过 1 个百分点即失败，同时导出 Bad Case 作为构建产物。
+
+真实评测依赖 Elasticsearch 和 AGICTO，CI 不重新跑 98 题，只校验已提交的报告。重新生成报告后，把 workflow 里的 `REPORT_PATH` 指向新文件即可。
+
+本地手动校验：
+
+```powershell
+uv run python scripts/check_regression.py --report rag_eval_report_98_citation_fix.json
+```
+
+`rag_eval_baseline.json` 是评测契约，只在确认整体指标提升后手动更新。延迟不进门禁，因为受机器和网络影响。
+
+### 16.6 Bad Case 导出
+
+```powershell
+uv run python scripts/export_badcases.py --report rag_eval_report_98_citation_fix.json --output badcases.md
+```
+
+按「接口错误 / 拒答 / 未给出引用 / 漏关键词 / 漏引用文档」五个维度分组，并按题型统计失败率，每条列出缺失关键词、缺失文档和答案摘要，用于归因后回流到切片、检索或提示词。
 
 ## 17. 当前评测基线
 

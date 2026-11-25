@@ -24,6 +24,7 @@ data/
 # 生成产物与可能包含问答原文的评测文件，默认不上传
 *.docx
 .docx-render-qa/
+badcases.md
 
 # 仅上传已脱敏的制度 PDF，其余 PDF 仍默认忽略
 *.pdf
